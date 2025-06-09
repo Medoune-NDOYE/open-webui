@@ -1,0 +1,158 @@
+function getModelData() {
+
+	const session = pfcGetCurrentSession();
+	const model = session.GetActiveModel();
+
+	let cadModelData = {};
+
+	function getAssemblyStructure(model, withFeatures, componentFilter = f => true, modelFilter = m => true) {
+
+		function getFeatures(model) {
+			return model ? model.ListItems(pfcModelItemType.ITEM_FEATURE)
+				.filter(f => f && f.FeatType)
+				.map(f => { return { id: f.Id, name: f.GetName(), type: f.FeatType.string().substring(9) } })
+				: [];
+		}
+
+		function getComponents(model, onlyVisible = false) {
+			return model.ListFeaturesByType(onlyVisible, pfcFeatureType.FEATTYPE_COMPONENT)
+		}
+
+		function getAssemblyStructure(model, withFeatures, componentFilter, modelFilter) {
+			const components = model ? getComponents(model)
+				.filter(componentFilter)
+				.map(f => Object.assign({ component: f, filename: f.ModelDescr.GetFileName() }))
+				.map(c => Object.assign(c, { model: session.GetModelFromFileName(c.filename) }))
+				.filter(c => !c.model || (modelFilter && modelFilter(c.model)))
+				.map(c => Object.assign(c, { components: getAssemblyStructure(c.model, withFeatures, componentFilter, modelFilter) }))
+				: []
+			return withFeatures ? components.map(c => Object.assign(c, { features: getFeatures(c.model) })) : components
+		}
+
+		let nodeCount = 0
+		function buildBOM(model, withFeatures) {
+			function buildStructure(modelname, components, features) {
+				nodeCount++
+				return {
+					features: features,
+					components: components.map(c => buildStructure(c.filename, c.components, c.features))
+				}
+			}
+			return buildStructure(model.FileName, getAssemblyStructure(model, withFeatures, componentFilter, modelFilter), withFeatures ? getFeatures(model) : undefined)
+		}
+		const bom = buildBOM(model, withFeatures)
+		return model ? { nodeCount, bom } : undefined
+	}
+
+	function valueOf(value) {
+		if (value) {
+			if ('discr' in value) {
+				switch (value.discr) {
+					case pfcParamValueType.PARAM_STRING: return value.StringValue;
+					case pfcParamValueType.PARAM_INTEGER: return value.IntValue;
+					case pfcParamValueType.PARAM_BOOLEAN: return value.BoolValue;
+					case pfcParamValueType.PARAM_DOUBLE: return value.DoubleValue;
+					case pfcParamValueType.PARAM_NOTE: return value.NoteId;
+					default: return undefined;
+				}
+			}
+			throw new Error(`${value} is not pfcParameterValue in function 'valueOf'`);
+		}
+		return value;
+	}
+
+	function getPlmDataForModel(model) {
+		return {
+			number: "123456",
+			revision: "A",
+			state: "In Work"
+		};
+	}
+
+	function getModelInfos(model) {
+		const modelInfos = {};
+
+		modelInfos['ModelType'] = model.Type.string();
+
+		for (const key in model) {
+			if (typeof model[key] !== "function") {
+				const value = model[key];
+				if (
+					value === null ||
+					["string", "number", "boolean"].includes(typeof value)
+				) {
+					modelInfos[key] = value;
+				}
+			}
+		}
+		return modelInfos;
+	}
+
+	function getMassProperties(model) {
+		const result = {};
+
+		try {
+			const massProps = model.GetMassProperty?.();
+			if (!massProps) return result;
+
+			for (const key in massProps) {
+				if (typeof massProps[key] !== 'function') {
+					const value = massProps[key];
+					if (
+						value === null ||
+						["string", "number", "boolean"].includes(typeof value)
+					) {
+						result[key] = value;
+					}
+				}
+			}
+		} catch (e) {
+			console.warn("Mass properties non disponibles pour ce modèle :", e.message);
+		}
+		return result;
+	}
+
+
+
+	function getParametersFromModel(model) {
+		if (!model.ListParams) return [];
+
+		const params = model.ListParams();
+		if (!Array.isArray(params)) return [];
+
+		return params.map(p => ({
+			name: p.GetName(),
+			type: p.Value.discr.string().replace("PARAM_", ""),
+			value: valueOf(p.Value)
+		}));
+	}
+
+
+	if (model) {
+
+		cadModelData.general = getModelInfos ? getModelInfos(model) : {};
+		cadModelData.massProperties = getMassProperties ? getMassProperties(model) : {};
+		cadModelData.structure = getAssemblyStructure ? getAssemblyStructure(model, true) : {};
+		cadModelData.parameters = getParametersFromModel ? getParametersFromModel(model) : {};
+		cadModelData.plm = getPlmDataForModel ? getPlmDataForModel(model) : {};
+
+
+		if (session.GetSelectedItems) {
+			const selected = session.GetSelectedItems();
+			if (selected && Array.isArray(selected)) {
+				cadModelData.selectedItems = selected.map(item => ({
+					id: item.GetId ? item.GetId() : null,
+					name: item.GetName ? item.GetName() : null,
+					type: item.GetType ? item.GetType() : null
+				}));
+			}
+		}
+
+	} else {
+		cadModelData.error = "No active model";
+	}
+
+	return cadModelData;
+}
+
+print(JSON.stringify(getModelData(), null, 2))
