@@ -101,12 +101,15 @@
 			})();
 		</script>
 
+		<script src="creojs/creojs.js"></script>
+		<script type="text/creojs" src="creojs/get_model_data.creojs"></script>
+
 		<title>Open WebUI</title>
 
 		%sveltekit.head%
 	</head>
 
-	<body data-sveltekit-preload-data="hover">
+	<body data-sveltekit-preload-data="hover" onload="CreoJS.$ADD_ON_LOAD (initialize)">
 		<div style="display: contents">%sveltekit.body%</div>
 
 		<div
