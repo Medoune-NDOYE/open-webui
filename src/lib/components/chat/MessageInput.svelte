@@ -1,4 +1,25 @@
 <script lang="ts">
+
+	function sendPrompt() {
+		if (window.CreoJS && typeof window.CreoJS.getModelData === "function") {
+			window.CreoJS.getModelData()
+				.then(modelData => {
+					const enrichedPrompt =
+						`${prompt}\n\n` +
+						`[MODEL_DATA]\n` +
+						`${JSON.stringify(modelData, null, 2)}\n` +
+						`[/MODEL_DATA]`;
+					dispatch('submit', enrichedPrompt);
+				})
+				.catch(e => {
+					console.error("Erreur récupération model Creo :", e);
+					dispatch('submit', prompt);
+				});
+		} else {
+			dispatch('submit', prompt);
+		}
+	}
+
 	import { toast } from 'svelte-sonner';
 	import { v4 as uuidv4 } from 'uuid';
 	import { createPicker, getAuthToken } from '$lib/utils/google-drive-picker';
@@ -589,7 +610,7 @@
 								document.getElementById('chat-input')?.focus();
 
 								if ($settings?.speechAutoSend ?? false) {
-									dispatch('submit', prompt);
+									sendPrompt();
 								}
 							}}
 						/>
@@ -598,7 +619,7 @@
 							class="w-full flex gap-1.5"
 							on:submit|preventDefault={() => {
 								// check if selectedModels support image input
-								dispatch('submit', prompt);
+								sendPrompt();
 							}}
 						>
 							<div
@@ -858,7 +879,7 @@
 															if (enterPressed) {
 																e.preventDefault();
 																if (prompt !== '' || files.length > 0) {
-																	dispatch('submit', prompt);
+																	sendPrompt();
 																}
 															}
 														}
@@ -1063,7 +1084,7 @@
 
 														// Submit the prompt when Enter key is pressed
 														if ((prompt !== '' || files.length > 0) && enterPressed) {
-															dispatch('submit', prompt);
+															sendPrompt();
 														}
 													}
 												}
