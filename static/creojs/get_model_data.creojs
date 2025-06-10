@@ -154,5 +154,3 @@ function getModelData() {
 
 	return cadModelData;
 }
-
-print(JSON.stringify(getModelData(), null, 2))
