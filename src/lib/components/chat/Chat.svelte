@@ -1508,6 +1508,16 @@
 						responseMessageIds[`${modelId}-${modelIdx ? modelIdx : _modelIdx}`];
 					const chatEventEmitter = await getChatEventEmitter(model.id, _chatId);
 
+					if (window.CreoJS && typeof window.CreoJS.getModelData === 'function') {
+						try {
+							const modelData = await window.CreoJS.getModelData();
+							_history.messages[parentId].content +=
+								`\n\n[MODEL_DATA]\n${JSON.stringify(modelData)}\n[/MODEL_DATA]`;
+						} catch (e) {
+							console.error('Failed to retrieve Creo data :', e);
+						}
+					}
+
 					scrollToBottom();
 					await sendPromptSocket(_history, model, responseMessageId, _chatId);
 
