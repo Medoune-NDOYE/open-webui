@@ -6,14 +6,46 @@ function getModelData() {
 	let cadModelData = {};
 
 	function getFeatures(model) {
-		return model ? model.ListItems(pfcModelItemType.ITEM_FEATURE)
-			.filter(f => f && f.FeatType)
-			.map(f => ({
+		if (!model) return [];
+
+		return model.ListItems(pfcModelItemType.ITEM_FEATURE).map(f => {
+			const isComponent = f.FeatType === pfcFeatureType.FEATTYPE_COMPONENT;
+			const rawName = f.GetName?.();
+			const hasValidName = rawName != null && rawName !== "no_name";
+
+			const featureInfo = {
 				id: f.Id,
 				type: f.FeatType.string().substring(9),
-				...(f.GetName() != null ? { name: f.GetName() } : {})
-			}))
-			: [];
+				...(hasValidName ? { name: rawName } : {})
+			};
+
+			if (isComponent) {
+				try {
+					const constraintsObj = f.GetConstraints();
+					const constraints = [];
+
+					for (let i = 0; i < constraintsObj.length; i++) {
+						const constraint = constraintsObj[i];
+
+						constraints.push({
+							type: constraint.Type?.string?.() ?? null,
+							assemblyReferenceId: constraint.AssemblyReference?.SelItem?.Id ?? null,
+							assemblyReferenceType: constraint.AssemblyReference?.SelItem?.Type?.string?.() ?? null,
+							componentReferenceId: constraint.ComponentReference?.SelItem?.Id ?? null,
+							componentReferenceType: constraint.ComponentReference?.SelItem?.Type?.string?.() ?? null
+						});
+					}
+
+					if (constraints.length > 0) {
+						featureInfo.constraints = constraints;
+					}
+				} catch (err) {
+					console.warn(`Failed to retrieve constraints for feature ${f.Id} :`, err);
+				}
+			}
+
+			return featureInfo;
+		});
 	}
 
 	function valueOf(value) {
@@ -104,14 +136,14 @@ function getModelData() {
 				const entry = {};
 
 				entry.selectionString = sel.SelectionString;
-				
+
 				if (sel.SelItem) {
 					const item = sel.SelItem;
 					entry.selectionType = "item";
 					entry.id = sel.SelItem.Id;
 					entry.name = sel.SelItem.GetName();
 					entry.type = sel.SelItem.Type.string()
-					
+
 				} else if (sel.SelModel) {
 					const model = sel.SelModel;
 					entry.selectionType = "model";
