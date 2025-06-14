@@ -3,8 +3,17 @@ function getModelData() {
 	const session = pfcGetCurrentSession();
 	const model = session.GetActiveModel();
 
-	let cadModelData = {};
-
+	function extractObjectProps(obj) {
+		const result = {};
+		for (const key in obj) {
+			const value = obj[key];
+			if (typeof value !== "function" && (value === null || ["string", "number", "boolean"].includes(typeof value))) {
+				result[key] = value;
+			}
+		}
+		return result;
+	}
+	
 	function getFeatures(model) {
 		if (!model) return [];
 
@@ -15,7 +24,7 @@ function getModelData() {
 
 			const featureInfo = {
 				id: f.Id,
-				type: f.FeatType.string().substring(9),
+				type: f.FeatType?.string?.()?.replace("FEATTYPE_", "") ?? "UNKNOWN",
 				...(hasValidName ? { name: rawName } : {})
 			};
 
@@ -26,14 +35,18 @@ function getModelData() {
 
 					for (let i = 0; i < constraintsObj.length; i++) {
 						const constraint = constraintsObj[i];
+						const constraintType = constraint.Type?.string?.()?.replace("ASM_CONSTRAINT_", "") ?? null;
 
-						constraints.push({
-							type: constraint.Type?.string?.() ?? null,
-							assemblyReferenceId: constraint.AssemblyReference?.SelItem?.Id ?? null,
-							assemblyReferenceType: constraint.AssemblyReference?.SelItem?.Type?.string?.() ?? null,
-							componentReferenceId: constraint.ComponentReference?.SelItem?.Id ?? null,
-							componentReferenceType: constraint.ComponentReference?.SelItem?.Type?.string?.() ?? null
-						});
+						const constraintInfo = { type: constraintType };
+
+						if (constraintType !== "DEF_PLACEMENT") {
+							constraintInfo.asmRefId = constraint.AssemblyReference?.SelItem?.Id ?? null;
+							constraintInfo.asmRefType = constraint.AssemblyReference?.SelItem?.Type?.string?.()?.replace("ITEM_", "") ?? null;
+							constraintInfo.compRefId = constraint.ComponentReference?.SelItem?.Id ?? null;
+							constraintInfo.compRefType = constraint.ComponentReference?.SelItem?.Type?.string?.()?.replace("ITEM_", "") ?? null;
+						}
+
+						constraints.push(constraintInfo);
 					}
 
 					if (constraints.length > 0) {
@@ -66,46 +79,20 @@ function getModelData() {
 	}
 
 	function getModelInfos(model) {
-		const modelInfos = {};
-
-		modelInfos['ModelType'] = model.Type.string();
-
-		for (const key in model) {
-			if (typeof model[key] !== "function") {
-				const value = model[key];
-				if (
-					value === null ||
-					["string", "number", "boolean"].includes(typeof value)
-				) {
-					modelInfos[key] = value;
-				}
-			}
-		}
-		return modelInfos;
+		const info = extractObjectProps(model);
+		info.ModelType = model.Type?.string?.()?.replace("MDL_", "");
+		return info;
 	}
 
 	function getMassProperties(model) {
-		const result = {};
-
 		try {
 			const massProps = model.GetMassProperty?.();
-			if (!massProps) return result;
-
-			for (const key in massProps) {
-				if (typeof massProps[key] !== 'function') {
-					const value = massProps[key];
-					if (
-						value === null ||
-						["string", "number", "boolean"].includes(typeof value)
-					) {
-						result[key] = value;
-					}
-				}
-			}
+			if (!massProps) return {};
+			return extractObjectProps(massProps);
 		} catch (e) {
-			console.warn("Mass properties for this model :", e.message);
+			console.warn("Mass properties for this model:", e.message);
+			return {};
 		}
-		return result;
 	}
 
 	function getParametersFromModel(model) {
@@ -116,16 +103,15 @@ function getModelData() {
 
 		return params.map(p => ({
 			name: p.GetName(),
-			type: p.Value.discr.string().replace("PARAM_", ""),
+			type: p.Value.discr.string?.()?.replace("PARAM_", ""),
 			value: valueOf(p.Value)
 		}));
 	}
 
-	function getSelectedItems() {
+	function getSelectedItems(session) {
 		const result = [];
 
 		try {
-			const session = pfcGetCurrentSession();
 			const selections = session.CurrentSelectionBuffer.Contents;
 
 			if (!selections || selections.length === 0) {
@@ -142,13 +128,13 @@ function getModelData() {
 					entry.selectionType = "item";
 					entry.id = sel.SelItem.Id;
 					entry.name = sel.SelItem.GetName();
-					entry.type = sel.SelItem.Type.string()
+					entry.type = sel.SelItem.Type?.string?.()?.replace("ITEM_", "")
 
 				} else if (sel.SelModel) {
 					const model = sel.SelModel;
 					entry.selectionType = "model";
 					entry.name = sel.SelModel.FullName;
-					entry.type = sel.SelModel.Type.string();
+					entry.type = sel.SelModel.Type?.string?.()?.replace("MDL_", "")
 				} else {
 					entry.selectionType = "unknown";
 				}
@@ -162,17 +148,15 @@ function getModelData() {
 		}
 	}
 
-	if (model) {
-
-		cadModelData.general = getModelInfos ? getModelInfos(model) : {};
-		cadModelData.massProperties = getMassProperties ? getMassProperties(model) : {};
-		cadModelData.features = getFeatures ? getFeatures(model) : {};
-		cadModelData.parameters = getParametersFromModel ? getParametersFromModel(model) : {};
-		cadModelData.selectedItems = getSelectedItems ? getSelectedItems(model) : {};
-
-	} else {
-		cadModelData.error = "No active model";
+	if (!model) {
+		return { error: "No active model" };
 	}
 
-	return cadModelData;
+	return {
+		general: getModelInfos(model),
+		massProperties: getMassProperties(model),
+		features: getFeatures(model),
+		parameters: getParametersFromModel(model),
+		selectedItems: getSelectedItems(session)
+	};
 }
