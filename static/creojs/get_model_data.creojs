@@ -14,7 +14,7 @@ function getModelData() {
 		return result;
 	}
 
-	function getFeatures(model) {
+	function getFeaturesFromModel(model) {
 		if (!model) return [];
 
 		return model.ListItems(pfcModelItemType.ITEM_FEATURE).map(f => {
@@ -75,13 +75,13 @@ function getModelData() {
 		return value;
 	}
 
-	function getModelInfos(model) {
+	function getModelProps(model) {
 		const info = extractObjectProps(model);
 		info.ModelType = model.Type?.string?.()?.replace("MDL_", "");
 		return info;
 	}
 
-	function getMassProperties(model) {
+	function getMassProps(model) {
 		try {
 			const massProps = model.GetMassProperty?.();
 			if (!massProps) return {};
@@ -121,17 +121,23 @@ function getModelData() {
 				entry.selectionString = sel.SelectionString;
 
 				if (sel.SelItem) {
-					const item = sel.SelItem;
+
 					entry.selectionType = "item";
-					entry.id = sel.SelItem.Id;
-					entry.name = sel.SelItem.GetName();
-					entry.type = sel.SelItem.Type?.string?.()?.replace("ITEM_", "")
+					
+					const selItem = sel.SelItem;
+					entry.itemId = selItem.Id;
+					entry.itemName = selItem.GetName();
+					entry.itemType = selItem.Type?.string?.()?.replace("ITEM_", "")
 
 				} else if (sel.SelModel) {
-					const model = sel.SelModel;
+
 					entry.selectionType = "model";
-					entry.name = sel.SelModel.FullName;
-					entry.type = sel.SelModel.Type?.string?.()?.replace("MDL_", "")
+
+					const selModel = sel.SelModel;
+					entry.modelProperties = getModelProps(selModel);
+					entry.massProperties = getMassProps(selModel);
+					entry.parameters = getParametersFromModel(selModel)
+
 				} else {
 					entry.selectionType = "unknown";
 				}
@@ -150,10 +156,10 @@ function getModelData() {
 	}
 
 	return {
-		general: getModelInfos(model),
-		massProperties: getMassProperties(model),
-		features: getFeatures(model),
+		modelProps: getModelProps(model),
+		massProps: getMassProps(model),
 		parameters: getParametersFromModel(model),
+		features: getFeaturesFromModel(model),
 		selectedItems: getSelectedItems(session)
 	};
 }
