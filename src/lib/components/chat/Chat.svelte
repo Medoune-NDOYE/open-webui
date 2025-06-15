@@ -1530,7 +1530,7 @@
 						try {
 							const modelData = await window.CreoJS.getModelData();
 							_history.messages[parentId].content +=
-								`\n\n[MODEL_DATA]\n${JSON.stringify(modelData)}\n[/MODEL_DATA]`;
+								`\n[MODEL_DATA]${JSON.stringify(modelData)}[/MODEL_DATA]`;
 						} catch (e) {
 							console.error('Failed to retrieve Creo data :', e);
 						}
