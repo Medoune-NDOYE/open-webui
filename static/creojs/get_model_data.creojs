@@ -134,8 +134,8 @@ function getModelData() {
 					entry.selectionType = "model";
 
 					const selModel = sel.SelModel;
-					entry.modelProperties = getModelProps(selModel);
-					entry.massProperties = getMassProps(selModel);
+					entry.modelProps = getModelProps(selModel);
+					entry.massProps = getMassProps(selModel);
 					entry.parameters = getParametersFromModel(selModel)
 
 				} else {
